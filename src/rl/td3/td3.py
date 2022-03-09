@@ -197,7 +197,7 @@ def worker(id, td3_trainer, envs, env_name, rewards_queue, eval_rewards_queue, s
                 env = envs[env_name]()  # robot env
         except: # isaac env
             using_isaacgym = True
-            batch_size = 4096 # todo
+            batch_size = 4 # todo
             import yaml
             with open('environment/isaacgymenvs/cfg/config.yaml') as f:
                 yaml_cfg = yaml.safe_load(f)

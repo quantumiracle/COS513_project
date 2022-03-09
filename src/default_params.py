@@ -212,10 +212,10 @@ def get_hyperparams(env_name):
     elif env_name == 'frankacabinet':
         hyperparams_dict={
         'alg_name': 'td3',
-        'max_steps': 16,
+        'max_steps': 40,
         'max_episodes': 5000,
         'action_range': 1,
-        'batch_size': 8192,
+        'batch_size': 8,
         'explore_steps': 16,
         'update_itr': 64,  # iterative update
         'eval_interval': 25, # evaluate the model and save it

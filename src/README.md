@@ -30,6 +30,12 @@ The relative paths of `isaacgymenvs/tasks/` may need to be fixed before installa
 
 This repo uses the same environment as [another repo](https://github.com/quantumiracle/Robotic_Door_Opening_with_Tactile_Simulation). Please follow the steps there to install our modified version of robosuite.
 
+
+
+Then for the rest dependency, run:
+
+`pip install -r requirements.txt`
+
 ## Citation:
 
 Please cite the our paper if you make use of this repo:

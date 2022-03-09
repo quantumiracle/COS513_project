@@ -1,6 +1,6 @@
 sim_device: 'cuda:0'
 graphics_device_id: 0
-headless: False
+headless: True
 
 task:
   # used to create the object
@@ -10,7 +10,7 @@ task:
 
   # if given, will override the device setting in gym. 
   env:
-    numEnvs: 4096
+    numEnvs: 4
     envSpacing: 1.5
     episodeLength: 500
     enableDebugVis: False
