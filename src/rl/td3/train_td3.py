@@ -17,6 +17,7 @@ from rl.buffers import ReplayBuffer
 from utils.load_params import load_params
 from utils.common_func import rand_params
 from rl.td3.td3 import TD3_Trainer, worker, cpu_worker
+from environment.isaacgymenvs.tasks.franka_cabinet import FrankaCabinet
 # from rl.td3.td3_test import TD3_Trainer, worker, cpu_worker
 
 
@@ -105,12 +106,10 @@ def train_td3(env, envs, train, test, finetune, path, model_id, render, process,
         model_path = './data/weights/'+ path +'/{}_td3'.format(str(model_id))
         print('Load model from: ', model_path)
         td3_trainer.load_model(model_path)
-        # td3_trainer.to_cuda()
+        td3_trainer.to_cuda()
         # print(env.action_space.high, env.action_space.low)
 
         no_DR = False
-        dist_threshold = 0.02
-        dist_threshold_max = 0.07
         if no_DR:
             randomized_params=None
         print(randomized_params)
@@ -126,24 +125,17 @@ def train_td3(env, envs, train, test, finetune, path, model_id, render, process,
             import time
             time.sleep(1)
             s_list = []
+            import yaml
+            with open('environment/isaacgymenvs/cfg/config.yaml') as f:
+                yaml_cfg = yaml.safe_load(f)
+            batch_size = yaml_cfg['task']['env']['numEnvs'] if isinstance(env, FrankaCabinet) else 0
             for step in range(max_steps):
-                action = td3_trainer.policy_net.get_action(state, noise_scale=0.0)
+                if isinstance(env, FrankaCabinet):
+                    state = state.cpu()
+                action = td3_trainer.policy_net.get_action(state, noise_scale=0.0, batch_size=batch_size)
 
-                # pandaopendoorfktactiletest
-                # side_action = td3_trainer.side_q.get_action(state)
-                # action = np.concatenate([action, [side_action]])
-
-
-                # offset = np.array([-0.085, 0.])  # offset value when gripper at center of knob but read a non-zero distance
-                # norm_dist = np.linalg.norm(np.array(state[21:23])-offset)  # norm of only x- and y-axis
-                # gripper_width = state[20]
-                # if  norm_dist < dist_threshold:
-                #     action[-1] = 0.1
-                # elif norm_dist > dist_threshold + 0.01 and gripper_width < dist_threshold_max:
-                #     action[-1] = -0.1  # open
-                # else:
-                #     action[-1] = 0
-
+                if isinstance(env, FrankaCabinet):
+                    action = torch.tensor(action).cuda()
                 next_state, reward, done, _ = env.step(action)
                 env.render() 
                 # time.sleep(0.1)
@@ -153,7 +145,7 @@ def train_td3(env, envs, train, test, finetune, path, model_id, render, process,
                 #     print(step, state)
                 # print(step, action, reward)
                 s_list.append(state)
-                if done:
+                if not isinstance(env, FrankaCabinet) and done:
                     break
 
             print('Episode: ', eps, '| Episode Reward: ', episode_reward)

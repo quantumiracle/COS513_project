@@ -1,6 +1,6 @@
 sim_device: 'cuda:0'
 graphics_device_id: 0
-headless: True
+headless: False
 
 task:
   # used to create the object
