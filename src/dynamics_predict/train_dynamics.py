@@ -423,6 +423,8 @@ if __name__ == '__main__':
     parser.add_argument('--train_dynamics', dest='TrainDynamics', action='store_true', default=False)
     parser.add_argument('--train_params', dest='TrainParams', action='store_true', default=False)
     parser.add_argument('--train_embedding', dest='TrainEmbedding', action='store_true', default=False)
+    parser.add_argument('--model', dest='model', type=str, default=None,
+            help='Moddel weights id (step for saving the model)')
     args = parser.parse_args()
 
     path = os.path.abspath(os.path.join(os.path.dirname(__file__),".."))
@@ -437,7 +439,8 @@ if __name__ == '__main__':
             collect_train_data(Env, load_from=path+'/data/weights/20210301_222527/4999'+'_td3_policy', save_to=path+'/data/dynamics_data/'+args.env, episodes=3000)
         elif args.env == 'inverteddoublependulum':
             # collect_train_data(Env, load_from=path+'/data/weights/20201230_2039/1800'+'_td3_policy', save_to=path+args.env+'/data/dynamics_data')
-            collect_train_data(Env, load_from=path+'/data/weights/20201230_1735/1950'+'_td3_policy', save_to=path+'/data/dynamics_data/'+args.env, episodes=10000)
+            # collect_train_data(Env, load_from=path+'/data/weights/20201230_1735/1950'+'_td3_policy', save_to=path+'/data/dynamics_data/'+args.env, episodes=10000)
+            collect_train_data(Env, load_from=path+f'/data/weights/{args.model}'+'_td3_policy', save_to=path+'/data/dynamics_data/'+args.env, episodes=10000)
         elif args.env == 'halfcheetah':
             collect_train_data(Env, load_from=path+'/data/weights/20210203_153134/22000'+'_td3_policy', save_to=path+'/data/dynamics_data/'+args.env, episodes=2000)
     
