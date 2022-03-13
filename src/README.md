@@ -20,7 +20,7 @@ Go to the folder of `rlgpu` env under conda directory, find `libpython3.7m.so.1.
 
 
 
-For [IsaacGymEnvs]([GitHub - NVIDIA-Omniverse/IsaacGymEnvs: Isaac Gym Reinforcement Learning Environments](https://github.com/NVIDIA-Omniverse/IsaacGymEnvs)) installation:
+For [IsaacGymEnvs](https://github.com/NVIDIA-Omniverse/IsaacGymEnvs) installation:
 
 Just clone and `pip install -e .`
 
