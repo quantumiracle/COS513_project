@@ -4,37 +4,37 @@ Code for paper [Not Only Domain Randomization: Universal Policy with Embedding S
 
 ## Installation
 
-For isaac-gym installation:
+* For isaac-gym installation:
 
-Go to [https://github.com/major-second/isaac-gym](https://github.com/major-second/isaac-gym), run `./create_conda_env_rlgpu.sh` to create a new conda env `rlgpu`  with isaac-gym installed. 
+  Go to [https://github.com/major-second/isaac-gym](https://github.com/major-second/isaac-gym), run `./create_conda_env_rlgpu.sh` to create a new conda env `rlgpu`  with isaac-gym installed. 
 
-For the error
+  For the error
 
-```
-ImportError: libpython3.7m.so.1.0: cannot open shared object file: No such file or directory
-```
+  ```
+  ImportError: libpython3.7m.so.1.0: cannot open shared object file: No such file or directory
+  ```
 
-Go to the folder of `rlgpu` env under conda directory, find `libpython3.7m.so.1.0` and run `sudo cp libpython3.7m.so.1.0 /usr/lib`.
+  Go to the folder of `rlgpu` env under conda directory, find `libpython3.7m.so.1.0` and run `sudo cp libpython3.7m.so.1.0 /usr/lib`.
 
-`source activate rlgpu` after installation.
-
-
-
-For [IsaacGymEnvs](https://github.com/NVIDIA-Omniverse/IsaacGymEnvs) installation:
-
-Just clone and `pip install -e .`
-
-The relative paths of `isaacgymenvs/tasks/` may need to be fixed before installation.
+  `source activate rlgpu` after installation.
 
 
 
-This repo uses the same environment as [another repo](https://github.com/quantumiracle/Robotic_Door_Opening_with_Tactile_Simulation). Please follow the steps there to install our modified version of robosuite.
+* For [IsaacGymEnvs](https://github.com/NVIDIA-Omniverse/IsaacGymEnvs) installation:
+
+  Just clone and `pip install -e .`
+
+  The relative paths of `isaacgymenvs/tasks/` may need to be fixed before installation.
 
 
 
-Then for the rest dependency, run:
+* This repo uses the same environment as [another repo](https://github.com/quantumiracle/Robotic_Door_Opening_with_Tactile_Simulation). Please follow the steps there to install our modified version of robosuite.
 
-`pip install -r requirements.txt`
+
+
+* Then for the rest dependency, run:
+
+  `pip install -r requirements.txt`
 
 ## Citation:
 
