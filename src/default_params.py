@@ -208,18 +208,18 @@ def get_hyperparams(env_name):
         'replay_buffer_size': 1e5,
         'randomized_params': None,
         'deterministic': True,
-        }
-    elif env_name == 'frankacabinet':
+        } 
+    elif env_name == 'Cartpole':
         hyperparams_dict={
         'alg_name': 'td3',
-        'max_steps': 40,
-        'max_episodes': 5000,
-        'action_range': 1,
-        'batch_size': 8,
-        'explore_steps': 16,
-        'update_itr': 64,  # iterative update
-        'eval_interval': 25, # evaluate the model and save it
-        'explore_noise_scale': 0.5, 
+        'max_steps': 16,
+        'max_episodes': 25000,
+        'action_range': None,
+        'batch_size': 8192,
+        'explore_steps': 256,
+        'update_itr': 100,  # iterative update
+        'eval_interval': 50, # evaluate the model and save it
+        'explore_noise_scale': 0.8, 
         'eval_noise_scale': 0.2,  # noisy evaluation trick
         'reward_scale': 1., # reward normalization
         'gamma': 0.99, # reward discount
@@ -229,8 +229,32 @@ def get_hyperparams(env_name):
         'policy_target_update_interval': 5, # delayed update
         'q_lr': 3e-4,
         'policy_lr': 3e-4,
-        'replay_buffer_size': 1000000,
-        'randomized_params': [],  # choose in: 'all', None, or a list of parameter keys
+        'replay_buffer_size': 100000,
+        'randomized_params': [],
+        'deterministic': True,
+        }
+    elif env_name == "FrankaCabinet":
+        hyperparams_dict={
+        'alg_name': 'td3',
+        'max_steps': 100,
+        'max_episodes': 10000,
+        'action_range': 1,  # on joint
+        'batch_size': 640,
+        'explore_steps': 0,
+        'update_itr': 100,  # iterative update
+        'eval_interval': 500, # evaluate the model and save it
+        'explore_noise_scale': 0.5, 
+        'eval_noise_scale': 0.02,  # noisy evaluation trick
+        'reward_scale': 1., # reward normalization in a batch
+        'gamma': 0.99, # reward discount
+        'soft_tau': 1e-2,  # soft udpate coefficient
+        'hidden_dim': 512,
+        'noise_decay': 0.9999, # decaying exploration noise
+        'policy_target_update_interval': 5, # delayed update
+        'q_lr': 3e-4,
+        'policy_lr': 3e-4,
+        'replay_buffer_size': 1e6,
+        'randomized_params': [],
         'deterministic': True,
         }
     else:

@@ -8,8 +8,8 @@ import sys, os
 sys.path.append(os.path.dirname(os.getcwd()))
 from dynamics_networks import DynamicsNetwork, DynamicsParamsOptimizer, EncoderDynamicsNetwork, EncoderDecoderDynamicsNetwork, VAEDynamicsNetwork
 from rl.policy_networks import DPG_PolicyNetwork
-from utils.load_params import load_params
-from utils.common_func import rand_params
+from upesi_utils.load_params import load_params
+from upesi_utils.common_func import rand_params
 from environment import envs
 from defaults import DYNAMICS_PARAMS, HYPER_PARAMS
 

@@ -14,8 +14,8 @@ from multiprocessing import Process, Manager
 from multiprocessing.managers import BaseManager
 
 from rl.buffers import ReplayBuffer
-from utils.load_params import load_params
-from utils.common_func import rand_params
+from upesi_utils.load_params import load_params
+from upesi_utils.common_func import rand_params
 from rl.ppo.ppo_continuous import PPOContinuous_Trainer, worker, cpu_worker
 
 def train_ppo(env, envs, train, test, finetune, path, model_id, render, process, seed):

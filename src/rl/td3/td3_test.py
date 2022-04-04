@@ -15,8 +15,8 @@ from rl.optimizers import SharedAdam, ShareParameters
 from rl.buffers import ReplayBuffer
 from rl.value_networks import QNetwork, DiscreteQNetwork
 from rl.policy_networks import DPG_PolicyNetwork
-from utils.load_params import load_params
-from utils.common_func import rand_params
+from upesi_utils.load_params import load_params
+from upesi_utils.common_func import rand_params
 import os
 import copy
 

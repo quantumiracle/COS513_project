@@ -14,26 +14,17 @@ from multiprocessing import Process, Manager
 from multiprocessing.managers import BaseManager
 
 from rl.buffers import ReplayBuffer
-from utils.load_params import load_params
-from utils.common_func import rand_params
+from upesi_utils.load_params import load_params
+from upesi_utils.common_func import rand_params
 from rl.td3.td3 import TD3_Trainer, worker, cpu_worker
-from environment.isaacgymenvs.tasks.franka_cabinet import FrankaCabinet
 # from rl.td3.td3_test import TD3_Trainer, worker, cpu_worker
 
 
-def train_td3(env, envs, train, test, finetune, path, model_id, render, process, seed):
+def train_td3(env, our_envs_dic, env_name, env_type, cfg, train, test, finetune, path, model_id, render, process, seed):
     torch.manual_seed(seed)  # Reproducibility
     np.random.seed(seed)
     random.seed(seed)
 
-    # hyper-parameters for RL training
-    try:
-        try: # custom env
-            env_name = env.name 
-        except: # gym env
-            env_name = env.spec.id
-    except: # isaac env
-        env_name = 'frankacabinet' #todo
 
     num_workers = process # or: mp.cpu_count()
     prefix = datetime.datetime.now().strftime("%Y%m%d_%H%M")
@@ -59,6 +50,9 @@ def train_td3(env, envs, train, test, finetune, path, model_id, render, process,
     action_space = env.action_space
     state_space = env.observation_space
 
+    if not torch.cuda.is_available():
+        raise NotImplemented
+
     machine_type = 'gpu' if torch.cuda.is_available() else 'cpu'
     worker_ = worker if torch.cuda.is_available() else cpu_worker
     print(machine_type, worker)
@@ -82,7 +76,7 @@ def train_td3(env, envs, train, test, finetune, path, model_id, render, process,
         eval_success = []
 
         for i in range(num_workers):
-            process = Process(target=worker_, args=(i+5, td3_trainer, envs, env_name, rewards_queue, eval_rewards_queue, success_queue, eval_success_queue, \
+            process = Process(target=worker_, args=(i+5, td3_trainer, our_envs_dic, env_name, env_type, cfg, rewards_queue, eval_rewards_queue, success_queue, eval_success_queue, \
             eval_interval, replay_buffer, max_episodes, max_steps, batch_size, explore_steps, noise_decay, update_itr, explore_noise_scale, eval_noise_scale, \
             reward_scale, gamma, soft_tau,  DETERMINISTIC, hidden_dim, model_path, render, randomized_params))  # the args contain shared and not shared
             process.daemon=True  # all processes closed when the main stops
@@ -102,6 +96,12 @@ def train_td3(env, envs, train, test, finetune, path, model_id, render, process,
         td3_trainer.save_model(model_path)
         
     if test:
+        if env_type == 'isaac':
+            sim_batch_size = cfg.task.env.numEnvs
+            assert sim_batch_size > 1
+        else:
+            sim_batch_size = 1
+
         import time
         model_path = './data/weights/'+ path +'/{}_td3'.format(str(model_id))
         print('Load model from: ', model_path)
@@ -110,6 +110,8 @@ def train_td3(env, envs, train, test, finetune, path, model_id, render, process,
         # print(env.action_space.high, env.action_space.low)
 
         no_DR = False
+        dist_threshold = 0.02
+        dist_threshold_max = 0.07
         if no_DR:
             randomized_params=None
         print(randomized_params)
@@ -125,28 +127,18 @@ def train_td3(env, envs, train, test, finetune, path, model_id, render, process,
             import time
             time.sleep(1)
             s_list = []
-            import yaml
-            with open('environment/isaacgymenvs/cfg/config.yaml') as f:
-                yaml_cfg = yaml.safe_load(f)
-            batch_size = yaml_cfg['task']['env']['numEnvs'] if isinstance(env, FrankaCabinet) else 0
             for step in range(max_steps):
-                if isinstance(env, FrankaCabinet):
-                    state = state.cpu()
-                action = td3_trainer.policy_net.get_action(state, noise_scale=0.0, batch_size=batch_size)
+                action = td3_trainer.policy_net.get_action(state, batch_size, noise_scale=0.0)
 
-                if isinstance(env, FrankaCabinet):
-                    action = torch.tensor(action).cuda()
                 next_state, reward, done, _ = env.step(action)
                 env.render() 
                 # time.sleep(0.1)
                 episode_reward += reward
                 state=next_state
-                # if np.any(state[-30:]>0):  # when there is tactile signal
-                #     print(step, state)
-                # print(step, action, reward)
+
                 s_list.append(state)
-                if not isinstance(env, FrankaCabinet) and done:
+                if sim_batch_size == 1 and done:
                     break
 
-            print('Episode: ', eps, '| Episode Reward: ', episode_reward)
+            print('Episode: ', eps, '| Episode Reward: ', mp.sum(episode_reward))
             # np.save('data/s.npy', s_list)

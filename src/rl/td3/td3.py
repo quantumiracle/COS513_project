@@ -3,20 +3,22 @@ Twin Delayed DDPG (TD3), if no twin no delayed then it's DDPG.
 using target Q instead of V net: 2 Q net, 2 target Q net, 1 policy net, 1 target policy net
 original paper: https://arxiv.org/pdf/1802.09477.pdf
 '''
+import isaacgym # must be imported before torch
 import math
 import random
 import gym
 import numpy as np
 import torch
 from torch.distributions import Normal
+from torch.utils.tensorboard import SummaryWriter
 import queue
 
 from rl.optimizers import SharedAdam, ShareParameters
 from rl.buffers import ReplayBuffer
 from rl.value_networks import QNetwork
 from rl.policy_networks import DPG_PolicyNetwork
-from utils.load_params import load_params
-from utils.common_func import rand_params
+from upesi_utils.load_params import load_params
+from upesi_utils.common_func import rand_params
 import os
 import copy
 
@@ -179,31 +181,36 @@ class TD3_Trainer():
         ShareParameters(self.policy_optimizer)
 
 
-def worker(id, td3_trainer, envs, env_name, rewards_queue, eval_rewards_queue, success_queue,\
+def worker(id, td3_trainer, our_envs_dic, env_name, env_type, cfg, rewards_queue, eval_rewards_queue, success_queue,\
         eval_success_queue, eval_interval, replay_buffer, max_episodes, max_steps, batch_size,\
         explore_steps, noise_decay, update_itr, explore_noise_scale, eval_noise_scale, reward_scale,\
         gamma, soft_tau, DETERMINISTIC, hidden_dim, model_path, render, randomized_params, seed=1):
     '''
     the function for sampling with multi-processing
     '''
-    with torch.cuda.device(id % torch.cuda.device_count()):
+    writer = SummaryWriter()
+
+    if env_type == 'our_mujoco':
+        env = our_envs_dic[env_name]()
+    elif env_type == 'gym_mujoco':
+        env = gym.make(env_name).unwrapped
+    elif env_type == 'isaac':
+        assert cfg
+        from isaacgymenvs_wrapper.isaacgymenvs_wrapper import IsaacGymEnv
+        env = IsaacGymEnv(env_name, cfg)
+    
+    if env_type == 'isaac':
+        sim_batch_size = cfg.task.env.numEnvs
+        assert sim_batch_size > 1
+        assert int(cfg.sim_device[-1]) == cfg.graphics_device_id
+        device_id = cfg.graphics_device_id
+    else:
+        sim_batch_size = 1
+        device_id = id % torch.cuda.device_count()
+
+    with torch.cuda.device(device_id):
         td3_trainer.to_cuda()
         print(td3_trainer, replay_buffer)
-        using_isaacgym: bool = False
-        try:
-            try:
-                env = gym.make(envs[env_name])  # mujoco env
-            except:
-                env = envs[env_name]()  # robot env
-        except: # isaac env
-            using_isaacgym = True
-            batch_size = 4 # todo
-            import yaml
-            with open('environment/isaacgymenvs/cfg/config.yaml') as f:
-                yaml_cfg = yaml.safe_load(f)
-            task_params, headless = yaml_cfg['task'], yaml_cfg['headless']
-            from environment.isaacgymenvs.tasks.franka_cabinet import FrankaCabinet
-            env = FrankaCabinet(cfg=task_params, sim_device=f'cuda:{id % torch.cuda.device_count()}', graphics_device_id=id % torch.cuda.device_count(), headless=headless)
         frame_idx=0
         rewards=[]
         current_explore_noise_scale = explore_noise_scale
@@ -214,18 +221,14 @@ def worker(id, td3_trainer, envs, env_name, rewards_queue, eval_rewards_queue, s
                 state = env.reset(**(rand_params(env, params=randomized_params)[0]))
             else:
                 state = env.reset()
-            if using_isaacgym:
-                state = state.detach().cpu().numpy()
             current_explore_noise_scale = current_explore_noise_scale*noise_decay
             
             for step in range(max_steps):
                 if frame_idx > explore_steps:
-                    action = td3_trainer.policy_net.get_action(state, using_isaacgym * batch_size, noise_scale=current_explore_noise_scale)
+                    action = td3_trainer.policy_net.get_action(state, sim_batch_size, noise_scale=current_explore_noise_scale)
                 else:
-                    action = td3_trainer.policy_net.sample_action(using_isaacgym * batch_size)
+                    action = td3_trainer.policy_net.sample_action(sim_batch_size)
                 try:
-                    if using_isaacgym:
-                        action = torch.Tensor(action).cuda()
                     next_state, reward, done, info = env.step(action)
                     if render: 
                         env.render()   
@@ -238,7 +241,7 @@ def worker(id, td3_trainer, envs, env_name, rewards_queue, eval_rewards_queue, s
                     try:
                         env = gym.make(env_name)  # mujoco env
                     except:
-                        env = envs[env_name]()  # robot env
+                        env = our_envs_dic[env_name]()  # robot env
 
                     # td3_trainer.policy_net = td3_trainer.target_ini(td3_trainer.target_policy_net, td3_trainer.policy_net)  # reset policy net as target net
                     try:  # recover the policy from last savepoint
@@ -246,18 +249,13 @@ def worker(id, td3_trainer, envs, env_name, rewards_queue, eval_rewards_queue, s
                     except:
                         print('Error: no last savepoint: ', last_savepoint)
                     break
-                if using_isaacgym:
-                    next_state = next_state.detach().cpu().numpy()
-                    action = action.detach().cpu().numpy()
-                    reward = reward.detach().cpu().numpy()
-                    done = done.detach().cpu().numpy()
 
                 if np.isnan(np.sum([np.sum(np.sum(state)), np.sum(np.sum(action)), np.sum(reward), np.sum(np.sum(next_state)), np.sum(done)])): # prevent nan in data 
                     print('Nan in data')
                     # print(state, action, reward, next_state, done)
                 else: # prevent nan in data 
-                    if using_isaacgym:
-                        for i in range(batch_size):
+                    if sim_batch_size > 1:
+                        for i in range(sim_batch_size):
                             replay_buffer.push(state[i], action[i], reward[i], next_state[i], done[i])
                     else:
                         replay_buffer.push(state, action, reward, next_state, done)
@@ -266,9 +264,11 @@ def worker(id, td3_trainer, envs, env_name, rewards_queue, eval_rewards_queue, s
                 episode_reward += reward
                 frame_idx += 1
                 
-                if not using_isaacgym and done:
+                if sim_batch_size == 1 and done:
                     break
             print('Worker: ', id, '|Episode: ', eps, '| Episode Reward: ', np.sum(episode_reward), '| Step: ', step)
+            writer.add_scalar('episode_reward', np.sum(episode_reward), eps)
+            writer.flush()
             rewards_queue.put(episode_reward)
 
             if eps % eval_interval == 0 and eps>0:  # only one process update

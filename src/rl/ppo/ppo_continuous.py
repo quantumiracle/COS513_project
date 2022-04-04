@@ -14,8 +14,8 @@ import torch.nn as nn
 
 from rl.value_networks import ValueNetwork
 from rl.policy_networks import PPO_PolicyNetwork
-from utils.load_params import load_params
-from utils.common_func import rand_params
+from upesi_utils.load_params import load_params
+from upesi_utils.common_func import rand_params
 
 from mujoco_py import MujocoException
 

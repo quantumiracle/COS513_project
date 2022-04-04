@@ -37,9 +37,9 @@ class PolicyNetworkBase(nn.Module):
     def get_action(self):
         pass
 
-    def sample_action(self, batch_size):
-        if batch_size:
-            a=torch.FloatTensor(batch_size, self._action_dim).uniform_(-1, 1)
+    def sample_action(self, sim_batch_size):
+        if sim_batch_size > 1:
+            a=torch.FloatTensor(sim_batch_size, self._action_dim).uniform_(-1, 1)
         else:
             a=torch.FloatTensor(self._action_dim).uniform_(-1, 1)
         return self.action_range*a.numpy()
@@ -152,25 +152,27 @@ class DPG_PolicyNetwork(PolicyNetworkBase):
         return action
 
 
-    def get_action(self, state, batch_size=False, noise_scale=0.0):
+    def get_action(self, state, sim_batch_size, noise_scale=0.0):
         '''
         select action for sampling, no gradients flow, noisy action, return .cpu
         '''
         if self.machine_type == 'gpu':
             try:
-                state = torch.FloatTensor(state).unsqueeze(0).cuda() # state dim: (N, dim of state)
+                state = torch.FloatTensor(state).cuda() # state dim: (N, dim of state)
             except:
-                state = torch.FloatTensor(state).unsqueeze(0)
+                state = torch.FloatTensor(state)
         else:  # cpu
-            state = torch.FloatTensor(state).unsqueeze(0)
-        if batch_size:
-            state = state.squeeze(0)
+            state = torch.FloatTensor(state)
+
+        if sim_batch_size == 1: 
+            state = state.unsqueeze(0)
+
         action = self.forward(state)
-        
-        if not batch_size:
-            action = action.detach().cpu().numpy().squeeze(0)
-        else:
-            action = action.detach().cpu().numpy()
+        action = action.detach().cpu().numpy()
+
+        if sim_batch_size == 1:
+            action = action.squeeze(0)
+
         ''' add noise '''
         normal = Normal(0, 1)
         noise = noise_scale * normal.sample(action.shape)

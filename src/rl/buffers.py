@@ -21,20 +21,10 @@ class ReplayBuffer:
         print(self.capacity, self.buffer)
 
     def sample(self, batch_size):
-        try:
-            batch = random.sample(self.buffer, batch_size)
-        except:
-            print('buffer: ', self.buffer)
-        try:
-            state, action, reward, next_state, done = map(np.stack,
-                                                        zip(*batch))  # stack for each element
-        except:
-            print('shape: ', batch.shape)
-            print('*batch: ', *batch)
-            print('state: ', state)
-            print('action: ', action)
-            print('reward: ', reward)
-            print('done: ', done)
+        batch = random.sample(self.buffer, batch_size)
+
+        state, action, reward, next_state, done = map(np.stack,
+                                                    zip(*batch))  # stack for each element      
             
         ''' 
         the * serves as unpack: sum(a,b) <=> batch=(a,b), sum(*batch) ;
