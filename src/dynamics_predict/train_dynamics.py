@@ -452,7 +452,7 @@ if __name__ == '__main__':
             collect_test_data(Env, load_from=path+'/data/weights/20210301_222527/4999'+'_td3_policy', save_to=path+'/data/dynamics_data/'+args.env, episodes_per_param=30)
         elif args.env == 'inverteddoublependulum':
             # collect_test_data(Env, load_from=path+'/data/weights/20201230_1735/1950'+'_td3_policy', save_to=path+'/data/dynamics_data/'+args.env, episodes_per_param=1000)
-            collect_test_data(Env, load_from=path+f'/data/weights/{args.model}'+'_td3_policy', save_to=path+'/data/dynamics_data/'+args.env, episodes_per_param=1000)
+            collect_test_data(Env, load_from=path+f'/data/weights/{args.model}'+'_td3_policy', save_to=path+'/data/dynamics_data/'+args.env, episodes_per_param=100)
 
         elif args.env == 'halfcheetah':
             collect_test_data(Env, load_from=path+'/data/weights/20210203_153134/22000'+'_td3_policy', save_to=path+'/data/dynamics_data/'+args.env, episodes_per_param=100)

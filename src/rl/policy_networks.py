@@ -152,7 +152,7 @@ class DPG_PolicyNetwork(PolicyNetworkBase):
         return action
 
 
-    def get_action(self, state, sim_batch_size, noise_scale=0.0):
+    def get_action(self, state, sim_batch_size=1, noise_scale=0.0):
         '''
         select action for sampling, no gradients flow, noisy action, return .cpu
         '''

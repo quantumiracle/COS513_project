@@ -152,7 +152,7 @@ def get_hyperparams(env_name):
         'reward_scale': None, # reward normalization
         'gamma': 0.99, # reward discount
         'soft_tau': 1e-2,  # soft udpate coefficient
-        'hidden_dim': 256,
+        'hidden_dim': 128,
         'noise_decay': 1., # decaying exploration noise
         'policy_target_update_interval': 2, # delayed update
         'q_lr': 3e-4,
