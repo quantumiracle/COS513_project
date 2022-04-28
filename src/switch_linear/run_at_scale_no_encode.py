@@ -12,7 +12,7 @@ import torch.nn as nn
 from pyro.infer.autoguide import AutoNormal, AutoDiagonalNormal
 from pyro.infer import SVI, Trace_ELBO, Predictive
 
-from networks import DynamicsEncoder, EmbeddingDynamicsNetwork, DynamicsParamsOptimizer, EmbeddingFit
+from networks import EmbeddingDynamicsNetwork, DynamicsParamsOptimizer, ParamsFit
 import argparse
 parser = argparse.ArgumentParser(description='Arguments.')
 
@@ -102,7 +102,7 @@ if __name__ == "__main__":
     s_dim = data_s.shape[-1]
     a_dim = data_a.shape[-1]
     param_dim = data_param.shape[-1]
-    latent_dim = 2
+    latent_dim = param_dim
     hidden_layers = 3
     lr = 0.005
     svi_lr = 0.01   
@@ -114,26 +114,21 @@ if __name__ == "__main__":
 
     if args.train:
         #stage 1, learning forward dynamics and dynamics encoder
-        opt = DynamicsParamsOptimizer(s_dim, a_dim, param_dim, latent_dim, hidden_dim=hidden_dim, num_hidden_layers=hidden_layers, batch=batch, lr=lr, device=device)
+        opt = DynamicsParamsOptimizer(s_dim, a_dim, param_dim, latent_dim, hidden_dim=hidden_dim, num_hidden_layers=hidden_layers, \
+            batch=batch, lr=lr, device=device, encode=False)
         data = (x, theta, y)
-        model_save_path = './model/test/'
+        model_save_path = './model/train_no_encode/'
         os.makedirs(model_save_path, exist_ok=True)
         opt.update(data, epoch=train_epochs, lr_schedule_step=lr_schedule_step, model_save_path=model_save_path)
 
     if args.eval:
         # load trained dynamics model
         dynamics_model = EmbeddingDynamicsNetwork(s_dim, a_dim, latent_dim, hidden_dim=hidden_dim, hidden_activation=F.relu, output_activation=None, num_hidden_layers=hidden_layers, lr=lr, gamma=0.99).to(device)
-        model_save_path = './model/test/'
+        model_save_path = './model/train_no_encode/'
         dynamics_model.load_state_dict(torch.load(model_save_path+'dynamics_model', map_location=device))
         dynamics_model.eval()
         for name, param in dynamics_model.named_parameters():
             param.requires_grad = False  # this is critical! set not gradient for the trained model, otherwise will be updated in Pyro
-        dynamics_encoder = DynamicsEncoder(param_dim, latent_dim, hidden_dim=hidden_dim, hidden_activation=F.relu, output_activation=F.tanh, num_hidden_layers=hidden_layers, lr=lr, gamma=0.99).to(device)
-        model_save_path = './model/test/'
-        dynamics_encoder.load_state_dict(torch.load(model_save_path+'dynamics_encoder', map_location=device))
-        # for name, param in dynamics_encoder.named_parameters():
-        #     if param.requires_grad:
-        #         print(name, param.data)
 
         #stage 2, using BNN and SVI to fit alpha
         pre_means = []
@@ -151,7 +146,7 @@ if __name__ == "__main__":
             # fit unknown parameters
             pyro.clear_param_store() # this is important in notebook; elease memory!
             # pyro.set_rng_seed(1)
-            model = EmbeddingFit(latent_dim, dynamics_model)
+            model = ParamsFit(param_dim, dynamics_model)
             guide = AutoDiagonalNormal(model)  # posterior dist. before learning AutoDiagonalNormal
             svi = SVI(model, guide, pyro.optim.Adam({"lr": svi_lr}), Trace_ELBO())  # parameters to optimize are determined by guide()
 
@@ -163,16 +158,14 @@ if __name__ == "__main__":
             for name, value in pyro.get_param_store().items():
                 print(name, pyro.param(name))
                 if 'loc' in name:
-                    pred_encoding_mean = pyro.param(name).detach().cpu().numpy()
-                    pre_means.append(pred_encoding_mean)
+                    pred_param_mean = pyro.param(name).detach().cpu().numpy()
+                    pre_means.append(pred_param_mean)
                 elif 'scale' in name:
-                    pred_encoding_var = pyro.param(name).detach().cpu().numpy()
-                    pre_vars.append(pred_encoding_var)
+                    pred_param_var = pyro.param(name).detach().cpu().numpy()
+                    pre_vars.append(pred_param_var)
             print(model.sigma)
 
             # get true value
-            true_encoding = dynamics_encoder(test_param).detach().cpu().numpy()
-            true_vals.append(true_encoding)
-            print(f'true params: {test_param}, true encoding: {true_encoding}')
+            print(f'true params: {test_param}')
 
         compare_plot(pre_means, pre_vars, true_vals)

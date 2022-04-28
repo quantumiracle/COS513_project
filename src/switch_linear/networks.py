@@ -69,12 +69,17 @@ class DynamicsParamsOptimizer():
     Dynamics parameters optimization model (gradient-based) based on a trained 
     forward dynamics prediction network: (s, a, learnable_params) -> s_ with real-world data. 
     """
-    def __init__(self, s_dim, a_dim, param_dim, latent_dim, hidden_dim=32, hidden_activation=F.relu, output_activation=None, num_hidden_layers=4, lr=1e-2, batch=1000, gamma=0.99, device='cpu'):
+    def __init__(self, s_dim, a_dim, param_dim, latent_dim, hidden_dim=32, hidden_activation=F.relu, output_activation=None, \
+        num_hidden_layers=4, lr=1e-2, batch=1000, gamma=0.99, device='cpu', encode=True):
         self.dynamics_model = EmbeddingDynamicsNetwork(s_dim, a_dim, latent_dim, hidden_dim, hidden_activation, output_activation, num_hidden_layers, lr, gamma).to(device)
-        self.dynamics_encoder = DynamicsEncoder(param_dim, latent_dim, hidden_dim, hidden_activation, output_activation, num_hidden_layers, lr, gamma).to(device)
-        self.optimizer = torch.optim.Adam(list(self.dynamics_model.parameters()) + list(self.dynamics_encoder.parameters()), lr=lr)
+        if encode:
+            self.dynamics_encoder = DynamicsEncoder(param_dim, latent_dim, hidden_dim, hidden_activation, num_hidden_layers=num_hidden_layers, lr=lr, gamma=gamma).to(device)
+            self.optimizer = torch.optim.Adam(list(self.dynamics_model.parameters()) + list(self.dynamics_encoder.parameters()), lr=lr)
+        else:
+            self.optimizer = torch.optim.Adam(list(self.dynamics_model.parameters()), lr=lr)
         self.device = device
         self.batch =  batch
+        self.encode = encode # whether encode theta as alpha or not
         self.loss = nn.MSELoss()
         lmbda = lambda epoch: 0.5
         self.scheduler = torch.optim.lr_scheduler.MultiplicativeLR(self.optimizer, lr_lambda=lmbda)
@@ -82,7 +87,7 @@ class DynamicsParamsOptimizer():
     def forward(self, x, theta):
         """ s,a concat with param (learnable) -> s_ """
 
-        alpha = self.dynamics_encoder(theta)
+        alpha = self.dynamics_encoder(theta) if self.encode else theta
         y_  = self.dynamics_model(torch.cat((x, alpha), axis=-1))
         
         return y_
@@ -112,8 +117,36 @@ class DynamicsParamsOptimizer():
             if ep%1000==0:
                 print('epoch: {}, loss: {}'.format(ep, loss.item()))
                 torch.save(self.dynamics_model.state_dict(), model_save_path+'dynamics_model')
-                torch.save(self.dynamics_encoder.state_dict(), model_save_path+'dynamics_encoder')
+                if self.encode:
+                    torch.save(self.dynamics_encoder.state_dict(), model_save_path+'dynamics_encoder')
 
+class ParamsFit(PyroModule):
+    def __init__(self, param_dim, dynamics_model):
+        super().__init__()
+        self.theta = PyroSample(dist.Normal(0., 1.).expand([param_dim]).to_event(1))
+        # self.weights1 = copy.deepcopy(dynamics_model.weights1.cpu())
+        # self.bias1 = copy.deepcopy(dynamics_model.bias1.cpu())
+        # self.weights2 = copy.deepcopy(dynamics_model.weights2.cpu())
+        # self.bias2 = copy.deepcopy(dynamics_model.bias2.cpu())
+        # self.bias2 = torch.randn(11, requires_grad=False)
+        self.dynamics_model = dynamics_model
+
+        # self.sigma = pyro.sample("sigma", dist.Uniform(0., 1.).expand([1]).to_event(1))
+        self.sigma = pyro.sample("sigma", dist.LogNormal(0., 0.01).expand([1]).to_event(1))
+        self.relu = nn.ReLU()
+
+    def forward(self, x, output=None):
+        batch_size = x.shape[0]
+        input = torch.cat((x, self.alpha.repeat([batch_size, 1])), axis=-1)
+        # x = self.relu(input @ self.weights1 + self.bias1)
+        # mu = x @ self.weights2 + self.bias2
+        mu = self.dynamics_model(input)
+        with pyro.plate("instances", batch_size):
+            # return pyro.sample("obs", dist.Normal(mu, self.sigma).to_event(1),  # TODO whether 0.01 or self.sigma, self.sigma does not seem to be updated
+            #                    obs=output)
+            return pyro.sample("obs", dist.Normal(mu, 0.01).to_event(1),  # TODO whether 0.01 or self.sigma, self.sigma does not seem to be updated
+                                obs=output)
+        # return mu
 
 class EmbeddingFit(PyroModule):
     def __init__(self, latent_dim, dynamics_model):
@@ -137,7 +170,8 @@ class EmbeddingFit(PyroModule):
         # mu = x @ self.weights2 + self.bias2
         mu = self.dynamics_model(input)
         with pyro.plate("instances", batch_size):
-            return pyro.sample("obs", dist.Normal(mu, self.sigma).to_event(1),  # TODO whether 0.01 or self.sigma, self.sigma does not seem to be updated
-                               obs=output)
-
+            # return pyro.sample("obs", dist.Normal(mu, self.sigma).to_event(1),  # TODO whether 0.01 or self.sigma, self.sigma does not seem to be updated
+            #                    obs=output)
+            return pyro.sample("obs", dist.Normal(mu, 0.01).to_event(1),  # TODO whether 0.01 or self.sigma, self.sigma does not seem to be updated
+                                obs=output)
         # return mu
