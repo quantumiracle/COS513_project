@@ -119,7 +119,7 @@ class EmbeddingFit(PyroModule):
         self.dynamics_model = dynamics_model
 
         # self.sigma = pyro.sample("sigma", dist.Uniform(0., 1.).expand([1]).to_event(1))
-        self.sigma = pyro.sample("sigma", dist.LogNormal(0., 1.).expand([1]).to_event(1))
+        self.sigma = pyro.sample("sigma", dist.LogNormal(0., 0.01).expand([1]).to_event(1))
         self.relu = nn.ReLU()
 
     def forward(self, x, output=None):
@@ -129,5 +129,7 @@ class EmbeddingFit(PyroModule):
         # mu = x @ self.weights2 + self.bias2
         mu = self.dynamics_model(input)
         with pyro.plate("instances", batch_size):
-            return pyro.sample("obs", dist.Normal(mu, 0.01).to_event(1),  # TODO whether 0.01 or self.sigma, self.sigma does not seem to be updated
+            return pyro.sample("obs", dist.Normal(mu, self.sigma).to_event(1),  # TODO whether 0.01 or self.sigma, self.sigma does not seem to be updated
                                obs=output)
+
+        # return mu

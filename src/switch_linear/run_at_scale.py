@@ -12,9 +12,11 @@ from pyro.infer.autoguide import AutoNormal, AutoDiagonalNormal
 from pyro.infer import SVI, Trace_ELBO, Predictive
 
 from networks import DynamicsEncoder, EmbeddingDynamicsNetwork, DynamicsParamsOptimizer, EmbeddingFit
+import argparse
+parser = argparse.ArgumentParser(description='Arguments.')
+
 
 device = 'cpu'
-
 
 def load_data(env_name):
     data_path = '../data/dynamics_data/'+env_name+'/dynamics.npy'
@@ -56,94 +58,105 @@ def load_test_data(env_name, test_idx):
 def compare_plot(pre_mean, pre_var, true, idx=2):
     pre_mean = np.array(pre_mean)
     pre_var = np.array(pre_var)
-    max_x = np.max(pre_mean[:,0])+0.2
-    min_x = np.min(pre_mean[:,0])-0.2
-    max_y = np.max(pre_mean[:,1])+0.2
-    min_y = np.min(pre_mean[:,1])-0.2
+    values = np.concatenate([pre_mean, true])
+    max_x = np.max(values[:,0])+0.2
+    min_x = np.min(values[:,0])-0.2
+    max_y = np.max(values[:,1])+0.2
+    min_y = np.min(values[:,1])-0.2
 
-    for m, v, t in zip(pre_mean, pre_var, true):
-        plt.scatter(*t[:idx], s=80, )
+    for i, (m, v, t) in enumerate(zip(pre_mean, pre_var, true)):
+        plt.scatter(*t[:idx], s=80, label=i, alpha=0.7)
         plt.errorbar(*m[:idx], xerr=v[0], yerr=v[1], fmt="o", capsize=6)
     plt.xlim(min_x, max_x)
     plt.ylim(min_y, max_y)
+    plt.savefig('compare.png')
+    plt.legend()
     plt.show()
 
-env_name = 'inverteddoublependulum'
-data_s, data_a, data_param, data_s_ = load_data(env_name)
+if __name__ == "__main__":
+    parser.add_argument('--train', dest='train', action='store_true', default=False)
+    parser.add_argument('--eval', dest='eval', action='store_true', default=False)
+    args = parser.parse_args()
 
-x = np.concatenate((data_s,data_a), axis=-1)
-theta = data_param
-y = data_s_
-print(x.shape, y.shape)
+    env_name = 'inverteddoublependulum'
+    data_s, data_a, data_param, data_s_ = load_data(env_name)
 
-s_dim = data_s.shape[-1]
-a_dim = data_a.shape[-1]
-param_dim = data_param.shape[-1]
-latent_dim = 3
-hidden_layers = 3
-lr = 0.001
-hidden_dim = 32
-print('parameter dimension: ', param_dim)
+    x = np.concatenate((data_s,data_a), axis=-1)
+    theta = data_param
+    y = data_s_
+    print(x.shape, y.shape)
 
-#stage 1, learning forward dynamics and dynamics encoder
-opt = DynamicsParamsOptimizer(s_dim, a_dim, param_dim, latent_dim, hidden_dim=hidden_dim, num_hidden_layers=hidden_layers, lr=lr)
-data = (x, theta, y)
-model_save_path = './model/test/'
-os.makedirs(model_save_path, exist_ok=True)
-opt.update(data, epoch=10000, model_save_path=model_save_path)
+    s_dim = data_s.shape[-1]
+    a_dim = data_a.shape[-1]
+    param_dim = data_param.shape[-1]
+    latent_dim = 3
+    hidden_layers = 3
+    lr = 0.001
+    svi_lr = 0.01   
+    hidden_dim = 32
+    print('parameter dimension: ', param_dim)
 
-# load model
-# updater = DynamicsParamsOptimizer(state_dim, action_dim, param_dim, latent_dim, switch_dim, model_save_path)
-# updater.model.load_state_dict(torch.load(model_save_path+'model', map_location=device))
+    if args.train:
+        #stage 1, learning forward dynamics and dynamics encoder
+        opt = DynamicsParamsOptimizer(s_dim, a_dim, param_dim, latent_dim, hidden_dim=hidden_dim, num_hidden_layers=hidden_layers, lr=lr)
+        data = (x, theta, y)
+        model_save_path = './model/test/'
+        os.makedirs(model_save_path, exist_ok=True)
+        opt.update(data, epoch=10000, model_save_path=model_save_path)
 
-# load trained dynamics model
-dynamics_model = EmbeddingDynamicsNetwork(s_dim, a_dim, latent_dim, hidden_dim=hidden_dim, hidden_activation=F.relu, output_activation=None, num_hidden_layers=hidden_layers, lr=lr, gamma=0.99).to(device)
-model_save_path = './model/test/'
-dynamics_model.load_state_dict(torch.load(model_save_path+'dynamics_model', map_location=device))
-dynamics_model.eval()
-for name, param in dynamics_model.named_parameters():
-    param.requires_grad = False  # this is critical! set not gradient for the trained model, otherwise will be updated in Pyro
-dynamics_encoder = DynamicsEncoder(param_dim, latent_dim, hidden_dim=hidden_dim, hidden_activation=F.relu, output_activation=None, num_hidden_layers=hidden_layers, lr=lr, gamma=0.99).to(device)
-model_save_path = './model/test/'
-dynamics_encoder.load_state_dict(torch.load(model_save_path+'dynamics_encoder', map_location=device))
+    if args.eval:
+        # load trained dynamics model
+        dynamics_model = EmbeddingDynamicsNetwork(s_dim, a_dim, latent_dim, hidden_dim=hidden_dim, hidden_activation=F.relu, output_activation=None, num_hidden_layers=hidden_layers, lr=lr, gamma=0.99).to(device)
+        model_save_path = './model/test/'
+        dynamics_model.load_state_dict(torch.load(model_save_path+'dynamics_model', map_location=device))
+        dynamics_model.eval()
+        for name, param in dynamics_model.named_parameters():
+            param.requires_grad = False  # this is critical! set not gradient for the trained model, otherwise will be updated in Pyro
+        dynamics_encoder = DynamicsEncoder(param_dim, latent_dim, hidden_dim=hidden_dim, hidden_activation=F.relu, output_activation=None, num_hidden_layers=hidden_layers, lr=lr, gamma=0.99).to(device)
+        model_save_path = './model/test/'
+        dynamics_encoder.load_state_dict(torch.load(model_save_path+'dynamics_encoder', map_location=device))
+        # for name, param in dynamics_encoder.named_parameters():
+        #     if param.requires_grad:
+        #         print(name, param.data)
 
-#stage 2, using BNN and SVI to fit alpha
-pre_means = []
-pre_vars = []
-true_vals = []
-for idx in range(3):
-    test_s, test_a, test_param, test_s_ = load_test_data(env_name, idx)
-    test_num_samples = 1000
-    test_x = torch.from_numpy(np.concatenate((test_s,test_a), axis=-1)).float()[:test_num_samples]
-    test_y = torch.from_numpy(test_s_).float()[:test_num_samples]
-    test_param = torch.from_numpy(test_param).float()
-    x_dim = test_x.shape[1]
-    y_dim = test_y.shape[1]
+        #stage 2, using BNN and SVI to fit alpha
+        pre_means = []
+        pre_vars = []
+        true_vals = []
+        for idx in range(1,5):
+            test_s, test_a, test_param, test_s_ = load_test_data(env_name, idx)
+            test_num_samples = 1000
+            test_x = torch.from_numpy(np.concatenate((test_s,test_a), axis=-1)).float()[:test_num_samples]
+            test_y = torch.from_numpy(test_s_).float()[:test_num_samples]
+            test_param = torch.from_numpy(test_param).float()
+            x_dim = test_x.shape[1]
+            y_dim = test_y.shape[1]
 
-    # fit unknown parameters
-    pyro.clear_param_store() # this is important in notebook; elease memory!
-    # pyro.set_rng_seed(1)
-    model = EmbeddingFit(latent_dim, dynamics_model)
-    guide = AutoDiagonalNormal(model)  # posterior dist. before learning AutoDiagonalNormal
-    svi = SVI(model, guide, pyro.optim.Adam({"lr": lr}), Trace_ELBO())  # parameters to optimize are determined by guide()
+            # fit unknown parameters
+            pyro.clear_param_store() # this is important in notebook; elease memory!
+            # pyro.set_rng_seed(1)
+            model = EmbeddingFit(latent_dim, dynamics_model)
+            guide = AutoDiagonalNormal(model)  # posterior dist. before learning AutoDiagonalNormal
+            svi = SVI(model, guide, pyro.optim.Adam({"lr": svi_lr}), Trace_ELBO())  # parameters to optimize are determined by guide()
 
-    for step in range(10000):
-        loss = svi.step(test_x, test_y) / test_y.numel()  # data in step() are passed to both model() and guide()
-        
-        if step % 100 == 0:
-            print("step {} loss = {:0.4g}".format(step, loss))
-    for name, value in pyro.get_param_store().items():
-        print(name, pyro.param(name))
-        if 'loc' in name:
-            pred_encoding_mean = pyro.param(name).detach().cpu().numpy()
-            pre_means.append(pred_encoding_mean)
-        elif 'scale' in name:
-            pred_encoding_var = pyro.param(name).detach().cpu().numpy()
-            pre_vars.append(pred_encoding_var)
+            for step in range(10):
+                loss = svi.step(test_x, test_y) / test_y.numel()  # data in step() are passed to both model() and guide()
+                
+                if step % 1000 == 0:
+                    print("step {} loss = {:0.4g}".format(step, loss))
+            for name, value in pyro.get_param_store().items():
+                print(name, pyro.param(name))
+                if 'loc' in name:
+                    pred_encoding_mean = pyro.param(name).detach().cpu().numpy()
+                    pre_means.append(pred_encoding_mean)
+                elif 'scale' in name:
+                    pred_encoding_var = pyro.param(name).detach().cpu().numpy()
+                    pre_vars.append(pred_encoding_var)
+            print(model.sigma)
 
-    # get true value
-    true_encoding = dynamics_encoder(test_param).detach().cpu().numpy()
-    true_vals.append(true_encoding)
-    print(true_encoding)
+            # get true value
+            true_encoding = dynamics_encoder(test_param).detach().cpu().numpy()
+            true_vals.append(true_encoding)
+            print(f'true params: {test_param}, true encoding: {true_encoding}')
 
-compare_plot(pre_means, pre_vars, true_vals)
+        compare_plot(pre_means, pre_vars, true_vals)
