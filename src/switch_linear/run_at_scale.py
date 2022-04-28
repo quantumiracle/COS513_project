@@ -1,3 +1,4 @@
+from functools import total_ordering
 import torch
 import pandas as pd
 import numpy as np
@@ -16,7 +17,9 @@ import argparse
 parser = argparse.ArgumentParser(description='Arguments.')
 
 
-device = 'cpu'
+# device = 'cpu'
+# device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
+device = 'cuda:0'
 
 def load_data(env_name):
     data_path = '../data/dynamics_data/'+env_name+'/dynamics.npy'
@@ -94,15 +97,18 @@ if __name__ == "__main__":
     lr = 0.001
     svi_lr = 0.01   
     hidden_dim = 32
+    batch = 10000
+    total_epochs = 500000
+    lr_schedule_step = int(total_epochs/10)  # step the scheduler every n epochs
     print('parameter dimension: ', param_dim)
 
     if args.train:
         #stage 1, learning forward dynamics and dynamics encoder
-        opt = DynamicsParamsOptimizer(s_dim, a_dim, param_dim, latent_dim, hidden_dim=hidden_dim, num_hidden_layers=hidden_layers, lr=lr)
+        opt = DynamicsParamsOptimizer(s_dim, a_dim, param_dim, latent_dim, hidden_dim=hidden_dim, num_hidden_layers=hidden_layers, batch=batch, lr=lr, device=device)
         data = (x, theta, y)
         model_save_path = './model/test/'
         os.makedirs(model_save_path, exist_ok=True)
-        opt.update(data, epoch=10000, model_save_path=model_save_path)
+        opt.update(data, epoch=total_epochs, lr_schedule_step=lr_schedule_step, model_save_path=model_save_path)
 
     if args.eval:
         # load trained dynamics model

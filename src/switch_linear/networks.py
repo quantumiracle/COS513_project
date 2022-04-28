@@ -10,8 +10,6 @@ from pyro.nn import PyroModule, PyroSample
 import torch.nn as nn
 from pyro.infer.autoguide import AutoNormal, AutoDiagonalNormal
 
-device = 'cpu'
-
 class DynamicsEncoder(nn.Module):
     """ Dynamics parameters encoding network: (params) -> (latent code) """
     def __init__(self, param_dim, latent_dim, hidden_dim=32, hidden_activation=F.relu, output_activation=F.tanh, num_hidden_layers=2, lr=1e-3, gamma=0.99):
@@ -71,12 +69,15 @@ class DynamicsParamsOptimizer():
     Dynamics parameters optimization model (gradient-based) based on a trained 
     forward dynamics prediction network: (s, a, learnable_params) -> s_ with real-world data. 
     """
-    def __init__(self, s_dim, a_dim, param_dim, latent_dim, hidden_dim=32, hidden_activation=F.relu, output_activation=None, num_hidden_layers=4, lr=1e-2, gamma=0.99):
+    def __init__(self, s_dim, a_dim, param_dim, latent_dim, hidden_dim=32, hidden_activation=F.relu, output_activation=None, num_hidden_layers=4, lr=1e-2, batch=1000, gamma=0.99, device='cpu'):
         self.dynamics_model = EmbeddingDynamicsNetwork(s_dim, a_dim, latent_dim, hidden_dim, hidden_activation, output_activation, num_hidden_layers, lr, gamma).to(device)
         self.dynamics_encoder = DynamicsEncoder(param_dim, latent_dim, hidden_dim, hidden_activation, output_activation, num_hidden_layers, lr, gamma).to(device)
         self.optimizer = torch.optim.Adam(list(self.dynamics_model.parameters()) + list(self.dynamics_encoder.parameters()), lr=lr)
-
+        self.device = device
+        self.batch =  batch
         self.loss = nn.MSELoss()
+        lmbda = lambda epoch: 0.5
+        self.scheduler = torch.optim.lr_scheduler.MultiplicativeLR(self.optimizer, lr_lambda=lmbda)
 
     def forward(self, x, theta):
         """ s,a concat with param (learnable) -> s_ """
@@ -86,22 +87,29 @@ class DynamicsParamsOptimizer():
         
         return y_
 
-    def update(self, data, epoch=200, model_save_path=None):
+    def update(self, data, epoch=200, lr_schedule_step=1000, model_save_path=None):
         (x, theta, y) = data
         if not isinstance(x, torch.Tensor):
-            x = torch.Tensor(x).to(device)
+            x = torch.Tensor(x).to(self.device)
         if not isinstance(theta, torch.Tensor):
-            theta = torch.Tensor(theta).to(device)        
+            theta = torch.Tensor(theta).to(self.device)        
         if not isinstance(y, torch.Tensor):
-            y = torch.Tensor(y).to(device)
+            y = torch.Tensor(y).to(self.device)
 
         for ep in range(epoch):
-            y_ = self.forward(x, theta)
+            if (ep+1)%lr_schedule_step == 0:
+                self.scheduler.step()
+            sample_idx = np.random.choice(x.shape[0], self.batch, replace=False)# cannot forward the whole dataset, sample a batch containing data points
+            batch_x = x[sample_idx]
+            batch_theta = theta[sample_idx]
+            batch_y = y[sample_idx]
+
+            y_ = self.forward(batch_x, batch_theta)
             self.optimizer.zero_grad()
-            loss = self.loss(y_, y)
+            loss = self.loss(y_, batch_y)
             loss.backward()
             self.optimizer.step()
-            if ep%100==0:
+            if ep%1000==0:
                 print('epoch: {}, loss: {}'.format(ep, loss.item()))
                 torch.save(self.dynamics_model.state_dict(), model_save_path+'dynamics_model')
                 torch.save(self.dynamics_encoder.state_dict(), model_save_path+'dynamics_encoder')
