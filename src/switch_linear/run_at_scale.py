@@ -9,11 +9,12 @@ import os
 
 import pyro
 import torch.nn as nn
-from pyro.infer.autoguide import AutoNormal, AutoDiagonalNormal
-from pyro.infer import SVI, Trace_ELBO, Predictive
+from pyro.infer.autoguide import AutoNormal, AutoDiagonalNormal, AutoMultivariateNormal
+from pyro.infer import SVI, Trace_ELBO, Predictive,  TraceGraph_ELBO
 
 from networks import DynamicsEncoder, EmbeddingDynamicsNetwork, DynamicsParamsOptimizer, EmbeddingFit
 import argparse
+import pyro
 parser = argparse.ArgumentParser(description='Arguments.')
 
 
@@ -153,13 +154,17 @@ if __name__ == "__main__":
             # pyro.set_rng_seed(1)
             model = EmbeddingFit(latent_dim, dynamics_model)
             guide = AutoDiagonalNormal(model)  # posterior dist. before learning AutoDiagonalNormal
-            svi = SVI(model, guide, pyro.optim.Adam({"lr": svi_lr}), Trace_ELBO())  # parameters to optimize are determined by guide()
+
+            svi = SVI(model, guide, pyro.optim.Adam({"lr": svi_lr}),  Trace_ELBO())  # parameters to optimize are determined by guide()
 
             for step in range(10000):
                 loss = svi.step(test_x, test_y) / test_y.numel()  # data in step() are passed to both model() and guide()
                 
                 if step % 1000 == 0:
                     print("step {} loss = {:0.4g}".format(step, loss))
+            # print('mu: ', {pyro.param('mu').item()})
+            # print('sigma: ', {pyro.param('sigma').item()})
+
             for name, value in pyro.get_param_store().items():
                 print(name, pyro.param(name))
                 if 'loc' in name:

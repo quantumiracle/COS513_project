@@ -131,22 +131,17 @@ class ParamsFit(PyroModule):
         # self.bias2 = torch.randn(11, requires_grad=False)
         self.dynamics_model = dynamics_model
 
+        ## prior of the latent code
         # self.sigma = pyro.sample("sigma", dist.Uniform(0., 1.).expand([1]).to_event(1))
         self.sigma = pyro.sample("sigma", dist.LogNormal(0., 0.01).expand([1]).to_event(1))
-        self.relu = nn.ReLU()
 
     def forward(self, x, output=None):
         batch_size = x.shape[0]
-        input = torch.cat((x, self.alpha.repeat([batch_size, 1])), axis=-1)
-        # x = self.relu(input @ self.weights1 + self.bias1)
-        # mu = x @ self.weights2 + self.bias2
+        input = torch.cat((x, self.theta.repeat([batch_size, 1])), axis=-1)
         mu = self.dynamics_model(input)
         with pyro.plate("instances", batch_size):
-            # return pyro.sample("obs", dist.Normal(mu, self.sigma).to_event(1),  # TODO whether 0.01 or self.sigma, self.sigma does not seem to be updated
-            #                    obs=output)
-            return pyro.sample("obs", dist.Normal(mu, 0.01).to_event(1),  # TODO whether 0.01 or self.sigma, self.sigma does not seem to be updated
-                                obs=output)
-        # return mu
+            return pyro.sample("obs", dist.Normal(mu, self.sigma).to_event(1),  # TODO whether 0.01 or self.sigma, self.sigma does not seem to be updated
+                               obs=output)
 
 class EmbeddingFit(PyroModule):
     def __init__(self, latent_dim, dynamics_model):
@@ -161,17 +156,48 @@ class EmbeddingFit(PyroModule):
 
         # self.sigma = pyro.sample("sigma", dist.Uniform(0., 1.).expand([1]).to_event(1))
         self.sigma = pyro.sample("sigma", dist.LogNormal(0., 0.01).expand([1]).to_event(1))
-        self.relu = nn.ReLU()
+        # self.sigma = pyro.sample("sigma", dist.Normal(0., 0.1).expand([1]).to_event(1))
 
     def forward(self, x, output=None):
         batch_size = x.shape[0]
         input = torch.cat((x, self.alpha.repeat([batch_size, 1])), axis=-1)
-        # x = self.relu(input @ self.weights1 + self.bias1)
-        # mu = x @ self.weights2 + self.bias2
         mu = self.dynamics_model(input)
         with pyro.plate("instances", batch_size):
-            # return pyro.sample("obs", dist.Normal(mu, self.sigma).to_event(1),  # TODO whether 0.01 or self.sigma, self.sigma does not seem to be updated
+            return pyro.sample("obs", dist.Normal(mu, self.sigma).to_event(1),  # TODO whether 0.01 or self.sigma, self.sigma does not seem to be updated
+                               obs=output)
+            # return pyro.sample("obs", dist.Delta(mu).to_event(1),  # TODO whether 0.01 or self.sigma, self.sigma does not seem to be updated
             #                    obs=output)
-            return pyro.sample("obs", dist.Normal(mu, 0.01).to_event(1),  # TODO whether 0.01 or self.sigma, self.sigma does not seem to be updated
-                                obs=output)
         # return mu
+
+
+
+# class EmbeddingFit(PyroModule):
+#     def __init__(self, latent_dim, dynamics_model):
+#         super().__init__()
+#         mu = torch.tensor(0.0)
+#         sigma = torch.tensor(1.0)
+#         self.alpha = pyro.sample('alpha', dist.Normal(mu, sigma).expand([latent_dim]).to_event(1))
+#         # self.alpha = PyroSample(dist.Normal(0., 1.).expand([latent_dim]).to_event(1))
+#         self.dynamics_model = dynamics_model
+
+#         # self.sigma = pyro.sample("sigma", dist.Uniform(0., 1.).expand([1]).to_event(1))
+#         self.sigma = pyro.sample("sigma", dist.LogNormal(0., 0.01).expand([1]).to_event(1))
+#         self.relu = nn.ReLU()
+
+#     def forward(self, x, output=None):
+#         batch_size = x.shape[0]
+#         input = torch.cat((x, self.alpha.repeat([batch_size, 1])), axis=-1)
+#         # x = self.relu(input @ self.weights1 + self.bias1)
+#         # mu = x @ self.weights2 + self.bias2
+#         mu = self.dynamics_model(input)
+#         with pyro.plate("instances", batch_size):
+#             # return pyro.sample("obs", dist.Normal(mu, self.sigma).to_event(1),  # TODO whether 0.01 or self.sigma, self.sigma does not seem to be updated
+#             #                    obs=output)
+#             return pyro.sample("obs", dist.Normal(mu, 0.01).to_event(1),  # TODO whether 0.01 or self.sigma, self.sigma does not seem to be updated
+#                                 obs=output)
+#         # return
+
+# def guide(data):
+#     mu = pyro.param("mu", torch.tensor(0.0))
+#     sigma = pyro.param("sigma", torch.tensor(1.0))
+#     pyro.sample("alpha", dist.Normal(mu, sigma).expand([2]).to_event(1))

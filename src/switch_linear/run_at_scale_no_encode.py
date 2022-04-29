@@ -14,6 +14,7 @@ from pyro.infer import SVI, Trace_ELBO, Predictive
 
 from networks import EmbeddingDynamicsNetwork, DynamicsParamsOptimizer, ParamsFit
 import argparse
+
 parser = argparse.ArgumentParser(description='Arguments.')
 
 
@@ -148,6 +149,7 @@ if __name__ == "__main__":
             # pyro.set_rng_seed(1)
             model = ParamsFit(param_dim, dynamics_model)
             guide = AutoDiagonalNormal(model)  # posterior dist. before learning AutoDiagonalNormal
+            
             svi = SVI(model, guide, pyro.optim.Adam({"lr": svi_lr}), Trace_ELBO())  # parameters to optimize are determined by guide()
 
             for step in range(10000):
@@ -155,6 +157,7 @@ if __name__ == "__main__":
                 
                 if step % 1000 == 0:
                     print("step {} loss = {:0.4g}".format(step, loss))
+
             for name, value in pyro.get_param_store().items():
                 print(name, pyro.param(name))
                 if 'loc' in name:
@@ -166,6 +169,7 @@ if __name__ == "__main__":
             print(model.sigma)
 
             # get true value
+            true_vals.append(test_param.detach().cpu().numpy())
             print(f'true params: {test_param}')
 
         compare_plot(pre_means, pre_vars, true_vals)
