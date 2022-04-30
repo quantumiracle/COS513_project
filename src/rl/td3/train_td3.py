@@ -51,7 +51,7 @@ def train_td3(env, our_envs_dic, env_name, env_type, cfg, train, test, finetune,
     state_space = env.observation_space
 
     if not torch.cuda.is_available():
-        raise NotImplemented
+        print('Cuda is not available.')
 
     machine_type = 'gpu' if torch.cuda.is_available() else 'cpu'
     worker_ = worker if torch.cuda.is_available() else cpu_worker

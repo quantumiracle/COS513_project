@@ -9,6 +9,7 @@ import pyro.distributions as dist
 from pyro.nn import PyroModule, PyroSample
 import torch.nn as nn
 from pyro.infer.autoguide import AutoNormal, AutoDiagonalNormal
+from torch.distributions.constraints import positive
 
 class DynamicsEncoder(nn.Module):
     """ Dynamics parameters encoding network: (params) -> (latent code) """
@@ -146,17 +147,18 @@ class ParamsFit(PyroModule):
 class EmbeddingFit(PyroModule):
     def __init__(self, latent_dim, dynamics_model):
         super().__init__()
-        self.alpha = PyroSample(dist.Normal(0., 1.).expand([latent_dim]).to_event(1))
-        # self.weights1 = copy.deepcopy(dynamics_model.weights1.cpu())
-        # self.bias1 = copy.deepcopy(dynamics_model.bias1.cpu())
-        # self.weights2 = copy.deepcopy(dynamics_model.weights2.cpu())
-        # self.bias2 = copy.deepcopy(dynamics_model.bias2.cpu())
-        # self.bias2 = torch.randn(11, requires_grad=False)
+        # self.alpha = PyroSample(dist.Normal(0., 1.).expand([latent_dim]).to_event(1))
+        self.alpha = PyroSample(dist.MultivariateNormal(torch.zeros(latent_dim), torch.eye(latent_dim)).to_event(0))
+        
+        # self.alpha_mu = pyro.sample("alpha_mu", dist.Uniform(0., 1.).expand([latent_dim]).to_event(1))
+        # self.alpha_sigma = pyro.sample("alpha_sigma", dist.Uniform(0., 1.).expand([latent_dim]).to_event(1))
+        # self.alpha = PyroSample(dist.Normal(self.alpha_mu, self.alpha_sigma).to_event(1))
+
         self.dynamics_model = dynamics_model
 
         # self.sigma = pyro.sample("sigma", dist.Uniform(0., 1.).expand([1]).to_event(1))
-        self.sigma = pyro.sample("sigma", dist.LogNormal(0., 0.01).expand([1]).to_event(1))
-        # self.sigma = pyro.sample("sigma", dist.Normal(0., 0.1).expand([1]).to_event(1))
+        # self.sigma = pyro.sample("sigma", dist.LogNormal(0., 0.01).expand([1]).to_event(1))
+        self.sigma = 0.01
 
     def forward(self, x, output=None):
         batch_size = x.shape[0]

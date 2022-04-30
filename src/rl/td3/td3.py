@@ -282,7 +282,7 @@ def worker(id, td3_trainer, our_envs_dic, env_name, env_type, cfg, rewards_queue
         td3_trainer.save_model(model_path+'/{}_td3'.format(eps))
 
 
-def cpu_worker(id, td3_trainer, envs, env_name, rewards_queue, eval_rewards_queue, success_queue,\
+def cpu_worker(id, td3_trainer, our_envs_dic, env_name, env_type, cfg, rewards_queue, eval_rewards_queue, success_queue,\
         eval_success_queue, eval_interval, replay_buffer, max_episodes, max_steps, batch_size,\
         explore_steps, noise_decay, update_itr, explore_noise_scale, eval_noise_scale, reward_scale,\
         gamma, soft_tau, DETERMINISTIC, hidden_dim, model_path, render, randomized_params, seed=1):
@@ -291,10 +291,22 @@ def cpu_worker(id, td3_trainer, envs, env_name, rewards_queue, eval_rewards_queu
     '''
     # td3_trainer.to_cuda()
     print(td3_trainer, replay_buffer)
-    try:
-        env = gym.make(env_name)  # mujoco env
-    except:
-        env = envs[env_name]()  # robot env
+    if env_type == 'our_mujoco':
+        env = our_envs_dic[env_name]()
+    elif env_type == 'gym_mujoco':
+        env = gym.make(env_name).unwrapped
+    elif env_type == 'isaac':
+        assert cfg
+        from isaacgymenvs_wrapper.isaacgymenvs_wrapper import IsaacGymEnv
+        env = IsaacGymEnv(env_name, cfg)
+
+    if env_type == 'isaac':
+        sim_batch_size = cfg.task.env.numEnvs
+        assert sim_batch_size > 1
+        assert int(cfg.sim_device[-1]) == cfg.graphics_device_id
+    else:
+        sim_batch_size = 1
+    
     frame_idx=0
     rewards=[]
     current_explore_noise_scale = explore_noise_scale
@@ -309,9 +321,9 @@ def cpu_worker(id, td3_trainer, envs, env_name, rewards_queue, eval_rewards_queu
         
         for step in range(max_steps):
             if frame_idx > explore_steps:
-                action = td3_trainer.policy_net.get_action(state, noise_scale=current_explore_noise_scale)
+                action = td3_trainer.policy_net.get_action(state, sim_batch_size, noise_scale=current_explore_noise_scale)
             else:
-                action = td3_trainer.policy_net.sample_action()
+                action = td3_trainer.policy_net.sample_action(sim_batch_size)
             try:
                 next_state, reward, done, info = env.step(action)
                 if render: 
@@ -322,10 +334,10 @@ def cpu_worker(id, td3_trainer, envs, env_name, rewards_queue, eval_rewards_queu
             except MujocoException:
                 print('MujocoException')
                 # recreate an env, since sometimes reset not works, the env might be broken
-                try:  
+                try:
                     env = gym.make(env_name)  # mujoco env
                 except:
-                    env = envs[env_name]()  # robot env
+                    env = our_envs_dic[env_name]()  # robot env
 
                 # td3_trainer.policy_net = td3_trainer.target_ini(td3_trainer.target_policy_net, td3_trainer.policy_net)  # reset policy net as target net
                 try: # recover the policy from last savepoint
@@ -338,12 +350,16 @@ def cpu_worker(id, td3_trainer, envs, env_name, rewards_queue, eval_rewards_queu
                 print('Nan in data')
                 # print(state, action, reward, next_state, done)
             else: # prevent nan in data 
-                replay_buffer.push(state, action, reward, next_state, done)    
+                if sim_batch_size > 1:
+                    for i in range(sim_batch_size):
+                        replay_buffer.push(state[i], action[i], reward[i], next_state[i], done[i])
+                else:
+                    replay_buffer.push(state, action, reward, next_state, done)
 
             state = next_state
             episode_reward += reward
             frame_idx += 1
-            if done:
+            if sim_batch_size == 1 and done:
                 break
         print('Worker: ', id, '|Episode: ', eps, '| Episode Reward: ', episode_reward, '| Step: ', step)
         rewards_queue.put(episode_reward)

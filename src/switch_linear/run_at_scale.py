@@ -9,7 +9,7 @@ import os
 
 import pyro
 import torch.nn as nn
-from pyro.infer.autoguide import AutoNormal, AutoDiagonalNormal, AutoMultivariateNormal
+from pyro.infer.autoguide import AutoNormal, AutoDiagonalNormal, AutoMultivariateNormal, AutoLowRankMultivariateNormal
 from pyro.infer import SVI, Trace_ELBO, Predictive,  TraceGraph_ELBO
 
 from networks import DynamicsEncoder, EmbeddingDynamicsNetwork, DynamicsParamsOptimizer, EmbeddingFit
@@ -106,11 +106,15 @@ if __name__ == "__main__":
     latent_dim = 2
     hidden_layers = 3
     lr = 0.005
-    svi_lr = 0.01   
+    train_epochs = 100000
+    lr_schedule_step = int(train_epochs/10)  # decay lr for training;  step the scheduler every n epochs
+    eval_epochs = 10000
+    svi_lr = 0.01 
+    gamma = 0.1  # final learning rate will be gamma * initial_lr
+    lrd = gamma ** (1 / eval_epochs) # decay lr for evaluation 
     hidden_dim = 32
     batch = 10000
-    train_epochs = 100000
-    lr_schedule_step = int(train_epochs/10)  # step the scheduler every n epochs
+
     print('parameter dimension: ', param_dim)
 
     if args.train:
@@ -154,10 +158,11 @@ if __name__ == "__main__":
             # pyro.set_rng_seed(1)
             model = EmbeddingFit(latent_dim, dynamics_model)
             guide = AutoDiagonalNormal(model)  # posterior dist. before learning AutoDiagonalNormal
+            # guide = AutoLowRankMultivariateNormal(model)  # posterior dist. before learning AutoDiagonalNormal
 
-            svi = SVI(model, guide, pyro.optim.Adam({"lr": svi_lr}),  Trace_ELBO())  # parameters to optimize are determined by guide()
+            svi = SVI(model, guide, pyro.optim.ClippedAdam({"lr": svi_lr, 'lrd': lrd}),  Trace_ELBO())  # parameters to optimize are determined by guide()
 
-            for step in range(10000):
+            for step in range(eval_epochs):
                 loss = svi.step(test_x, test_y) / test_y.numel()  # data in step() are passed to both model() and guide()
                 
                 if step % 1000 == 0:
