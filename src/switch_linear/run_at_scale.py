@@ -79,12 +79,16 @@ def compare_plot(pre_mean, pre_var, true, idx=2):
     min_y = np.min(values[:,1])-0.2
 
     for i, (m, v, t) in enumerate(zip(pre_mean, pre_var, true)):
-        plt.scatter(*t[:idx], s=80, label=i, alpha=0.7)
-        plt.errorbar(*m[:idx], xerr=v[0], yerr=v[1], fmt="o", capsize=6)
+        c=np.random.rand(3,)
+        plt.scatter(*t[:idx], color=c, marker="*", s=80, alpha=0.7)
+        # plt.errorbar(*m[:idx], xerr=v[0], yerr=v[1], fmt="o", capsize=6)
+        plt.scatter(*m[:idx], color=c, s=80,  label=i, alpha=0.7)
     plt.xlim(min_x, max_x)
     plt.ylim(min_y, max_y)
-    plt.savefig('compare.png')
+    plt.xlabel(r'$\alpha_1$')
+    plt.ylabel(r'$\alpha_2$')
     plt.legend()
+    plt.savefig('compare_prob.png')
     plt.show()
 
 if __name__ == "__main__":
@@ -144,9 +148,9 @@ if __name__ == "__main__":
         pre_means = []
         pre_vars = []
         true_vals = []
-        for idx in range(3):
+        for idx in range(10):
             test_s, test_a, test_param, test_s_ = load_test_data(env_name, idx, means, stds)
-            test_num_samples = 5000
+            test_num_samples = 40
             test_x = torch.from_numpy(np.concatenate((test_s,test_a), axis=-1)).float()[:test_num_samples]
             test_y = torch.from_numpy(test_s_).float()[:test_num_samples]
             test_param = torch.from_numpy(test_param).float()
@@ -180,9 +184,16 @@ if __name__ == "__main__":
                     pre_vars.append(pred_encoding_var)
             print(model.sigma)
 
+            print(f'inferred params: {pred_encoding_mean}')
+
             # get true value
             true_encoding = dynamics_encoder(test_param).detach().cpu().numpy()
             true_vals.append(true_encoding)
             print(f'true params: {test_param}, true encoding: {true_encoding}')
 
-        compare_plot(pre_means, pre_vars, true_vals)
+        errs = []
+        for i, (pred, true) in enumerate(zip(pre_means, true_vals)):
+            errs.append(np.linalg.norm(pred-true, 2)/np.linalg.norm(true, 2))
+        print('relative error: ', np.mean(errs), np.std(errs))
+
+        compare_plot(pre_means, pre_vars, true_vals)   # visualize the first two axis

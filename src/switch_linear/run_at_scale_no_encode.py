@@ -105,12 +105,16 @@ if __name__ == "__main__":
     param_dim = data_param.shape[-1]
     latent_dim = param_dim
     hidden_layers = 3
-    lr = 0.005
+    lr = 0.002
     svi_lr = 0.01   
     hidden_dim = 32
     batch = 10000
-    train_epochs = 100000
+    train_epochs = 200000
     lr_schedule_step = int(train_epochs/10)  # step the scheduler every n epochs
+    eval_epochs = 10000
+    svi_lr = 0.01 
+    gamma = 0.1  # final learning rate will be gamma * initial_lr
+    lrd = gamma ** (1 / eval_epochs) # decay lr for evaluation 
     print('parameter dimension: ', param_dim)
 
     if args.train:
@@ -135,7 +139,7 @@ if __name__ == "__main__":
         pre_means = []
         pre_vars = []
         true_vals = []
-        for idx in range(3):
+        for idx in range(10):
             test_s, test_a, test_param, test_s_ = load_test_data(env_name, idx, means, stds)
             test_num_samples = 5000
             test_x = torch.from_numpy(np.concatenate((test_s,test_a), axis=-1)).float()[:test_num_samples]
@@ -150,9 +154,9 @@ if __name__ == "__main__":
             model = ParamsFit(param_dim, dynamics_model)
             guide = AutoDiagonalNormal(model)  # posterior dist. before learning AutoDiagonalNormal
             
-            svi = SVI(model, guide, pyro.optim.Adam({"lr": svi_lr}), Trace_ELBO())  # parameters to optimize are determined by guide()
+            svi = SVI(model, guide, pyro.optim.ClippedAdam({"lr": svi_lr, 'lrd': lrd}), Trace_ELBO())  # parameters to optimize are determined by guide()
 
-            for step in range(10000):
+            for step in range(eval_epochs):
                 loss = svi.step(test_x, test_y) / test_y.numel()  # data in step() are passed to both model() and guide()
                 
                 if step % 1000 == 0:
@@ -166,10 +170,17 @@ if __name__ == "__main__":
                 elif 'scale' in name:
                     pred_param_var = pyro.param(name).detach().cpu().numpy()
                     pre_vars.append(pred_param_var)
+                
             print(model.sigma)
+            print(f'inferred params: {pred_param_mean}')
 
             # get true value
             true_vals.append(test_param.detach().cpu().numpy())
             print(f'true params: {test_param}')
 
-        compare_plot(pre_means, pre_vars, true_vals)
+        errs = []
+        for i, (pred, true) in enumerate(zip(pre_means, true_vals)):
+            errs.append(np.linalg.norm(pred-true, 2)/np.linalg.norm(true, 2))
+        print('relative error: ', np.mean(errs), np.std(errs))
+
+        compare_plot(pre_means, pre_vars, true_vals)  # visualize the first two axis

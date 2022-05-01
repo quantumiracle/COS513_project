@@ -122,6 +122,7 @@ class DynamicsParamsOptimizer():
                     torch.save(self.dynamics_encoder.state_dict(), model_save_path+'dynamics_encoder')
 
 class ParamsFit(PyroModule):
+    """ Directly fit parameters theta (without encoding). """
     def __init__(self, param_dim, dynamics_model):
         super().__init__()
         self.theta = PyroSample(dist.Normal(0., 1.).expand([param_dim]).to_event(1))
@@ -134,7 +135,8 @@ class ParamsFit(PyroModule):
 
         ## prior of the latent code
         # self.sigma = pyro.sample("sigma", dist.Uniform(0., 1.).expand([1]).to_event(1))
-        self.sigma = pyro.sample("sigma", dist.LogNormal(0., 0.01).expand([1]).to_event(1))
+        # self.sigma = pyro.sample("sigma", dist.LogNormal(0., 0.01).expand([1]).to_event(1))
+        self.sigma = 0.01
 
     def forward(self, x, output=None):
         batch_size = x.shape[0]
@@ -145,6 +147,7 @@ class ParamsFit(PyroModule):
                                obs=output)
 
 class EmbeddingFit(PyroModule):
+    """ Fit the dynamics encoding alpha. """
     def __init__(self, latent_dim, dynamics_model):
         super().__init__()
         # self.alpha = PyroSample(dist.Normal(0., 1.).expand([latent_dim]).to_event(1))
