@@ -125,20 +125,20 @@ if __name__ == "__main__":
         #stage 1, learning forward dynamics and dynamics encoder
         opt = DynamicsParamsOptimizer(s_dim, a_dim, param_dim, latent_dim, hidden_dim=hidden_dim, num_hidden_layers=hidden_layers, batch=batch, lr=lr, device=device)
         data = (x, theta, y)
-        model_save_path = './model/test/'
+        model_save_path = './model/train/'
         os.makedirs(model_save_path, exist_ok=True)
         opt.update(data, epoch=train_epochs, lr_schedule_step=lr_schedule_step, model_save_path=model_save_path)
 
     if args.eval:
         # load trained dynamics model
         dynamics_model = EmbeddingDynamicsNetwork(s_dim, a_dim, latent_dim, hidden_dim=hidden_dim, hidden_activation=F.relu, output_activation=None, num_hidden_layers=hidden_layers, lr=lr, gamma=0.99).to(device)
-        model_save_path = './model/test/'
+        model_save_path = './model/train/'
         dynamics_model.load_state_dict(torch.load(model_save_path+'dynamics_model', map_location=device))
         dynamics_model.eval()
         for name, param in dynamics_model.named_parameters():
             param.requires_grad = False  # this is critical! set not gradient for the trained model, otherwise will be updated in Pyro
         dynamics_encoder = DynamicsEncoder(param_dim, latent_dim, hidden_dim=hidden_dim, hidden_activation=F.relu, output_activation=F.tanh, num_hidden_layers=hidden_layers, lr=lr, gamma=0.99).to(device)
-        model_save_path = './model/test/'
+        model_save_path = './model/train/'
         dynamics_encoder.load_state_dict(torch.load(model_save_path+'dynamics_encoder', map_location=device))
         # for name, param in dynamics_encoder.named_parameters():
         #     if param.requires_grad:
