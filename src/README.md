@@ -1,6 +1,4 @@
-# UPESI
-
-Code for paper [Not Only Domain Randomization: Universal Policy with Embedding System Identification](https://arxiv.org/abs/2109.13438).
+# ESI
 
 ## Installation
 
@@ -36,18 +34,6 @@ Code for paper [Not Only Domain Randomization: Universal Policy with Embedding S
 
   `pip install -r requirements.txt`
 
-## Citation:
-
-Please cite the our paper if you make use of this repo:
-
-```
-@article{ding2021not,
-  title={Not Only Domain Randomization: Universal Policy with Embedding System Identification},
-  author={Ding, Zihan},
-  journal={arXiv preprint arXiv:2109.13438},
-  year={2021}
-}
-```
 
 ## Training Procedure
 
